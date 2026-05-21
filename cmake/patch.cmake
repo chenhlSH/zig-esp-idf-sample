@@ -52,7 +52,7 @@ string(REGEX REPLACE "pub const portTICK_PERIOD_MS[^;]*;" "" FILE_CONTENT "${FIL
 string(REGEX REPLACE "(//[^\n]*\n?)*const struct_unnamed_[0-9]+ = opaque {};( //[^\n]*\n?)*" "" FILE_CONTENT "${FILE_CONTENT}")
 string(REGEX REPLACE "(//[^\n]*\n?)*const union_unnamed_[0-9]+ = extern union \\{\n    unnamed_0: struct_unnamed_[0-9]+,\n    val: u32,\n\\};( //[^\n]*\n?)*" "" FILE_CONTENT "${FILE_CONTENT}")
 string(REGEX REPLACE "unnamed_0: struct_unnamed_[0-9]+,\n?" "" FILE_CONTENT "${FILE_CONTENT}")
-string(REGEX REPLACE "([a-zA-Z0-9_]+): ((\[[0-9]+\])?)(struct|union)_unnamed_[0-9]+" "\\1: \\2u32" FILE_CONTENT "${FILE_CONTENT}")
+string(REGEX REPLACE "([a-zA-Z0-9_]+): ((\\[[0-9]+\\])?)(struct|union)_unnamed_[0-9]+" "\\1: \\2u32" FILE_CONTENT "${FILE_CONTENT}")
 string(REGEX REPLACE "zeroes\\((struct|union)_unnamed_[0-9]+\\)" "zeroes(u32)" FILE_CONTENT "${FILE_CONTENT}")
 string(REGEX REPLACE "zeroes\\((\\[[0-9]+\\])(struct|union)_unnamed_[0-9]+\\)" "zeroes(\\1u32)" FILE_CONTENT "${FILE_CONTENT}")
 
@@ -100,13 +100,19 @@ if(CONFIG_IDF_TARGET_ESP32P4)
 endif()
 
 # LED Strip component patches (if enabled)
+# 修改后的代码段：
 if(HAS_LED_STRIP EQUAL 1)
     message(STATUS "  Applying LED Strip patches")
     string(REGEX REPLACE "pub const struct_led_strip_rmt_extra_config_20[^;]*;" "" FILE_CONTENT "${FILE_CONTENT}")
     string(REGEX REPLACE "pub const struct_format_layout_15[^;]*;" "" FILE_CONTENT "${FILE_CONTENT}")
     string(REGEX REPLACE "pub const led_strip_rmt_config_t[^;]*;" "" FILE_CONTENT "${FILE_CONTENT}")
     string(REGEX REPLACE "pub const led_color_component_format_t[^;]*;" "" FILE_CONTENT "${FILE_CONTENT}")
+    
+    # --- 增强清理：覆盖 opaque、extern struct 以及相关的 flags ---
+    string(REGEX REPLACE "pub const led_strip_config_t = opaque \\{[^}]*\\};" "" FILE_CONTENT "${FILE_CONTENT}")
     string(REGEX REPLACE "pub const led_strip_config_t = extern struct \\{[^}]*\\};" "" FILE_CONTENT "${FILE_CONTENT}")
+    string(REGEX REPLACE "const led_strip_flags = extern struct \\{[^}]*\\};" "" FILE_CONTENT "${FILE_CONTENT}")
+    string(REGEX REPLACE "pub const led_strip_flags = extern struct \\{[^}]*\\};" "" FILE_CONTENT "${FILE_CONTENT}")
 endif()
 
 # ============================================================================

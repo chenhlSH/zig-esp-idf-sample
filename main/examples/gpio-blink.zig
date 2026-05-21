@@ -10,7 +10,7 @@ const idf = @import("esp_idf");
 
 const log = std.log.scoped(.blink);
 
-const LED_PIN: idf.gpio.Num() = .@"2";
+const LED_PIN: idf.gpio.Num() = .@"8";
 
 export fn app_main() callconv(.c) void {
     log.info("GPIO Blink example — toggling GPIO{d}", .{@intFromEnum(LED_PIN)});

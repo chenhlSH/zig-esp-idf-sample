@@ -11,9 +11,9 @@ comptime {
 
 // LED strip configuration constants
 const LED_STRIP_USE_DMA = false;
-const LED_STRIP_LED_COUNT = if (LED_STRIP_USE_DMA) 256 else 24;
+const LED_STRIP_LED_COUNT = if (LED_STRIP_USE_DMA) 256 else 1;
 const LED_STRIP_MEMORY_BLOCK_WORDS = if (LED_STRIP_USE_DMA) 1024 else 0;
-const LED_STRIP_GPIO_PIN = 2;
+const LED_STRIP_GPIO_PIN = 48;
 
 fn configureLED() !led.LedStripHandle {
     // LED strip general initialization using wrapped types

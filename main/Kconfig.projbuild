@@ -65,3 +65,32 @@ menu "Example Configuration"
     endchoice
 
 endmenu
+
+menu "NullClaw PoC Configuration"
+
+    config NULLCLAW_LLM_API_URL
+        string "LLM API URL"
+        default "https://api.openai.com/v1/chat/completions"
+        help
+            OpenAI-compatible API endpoint for chat completions.
+            Examples:
+              OpenAI:    https://api.openai.com/v1/chat/completions
+              Kimi:      https://api.moonshot.cn/v1/chat/completions
+              DeepSeek:  https://api.deepseek.com/v1/chat/completions
+              Ollama:    http://localhost:11434/v1/chat/completions
+
+    config NULLCLAW_LLM_API_KEY
+        string "LLM API Key"
+        default "sk-your-key-here"
+        help
+            API key for the LLM provider.
+            For local Ollama, any non-empty string works.
+
+    config NULLCLAW_LLM_MODEL
+        string "LLM Model"
+        default "gpt-4o-mini"
+        help
+            Model name to use for chat completions.
+            Examples: gpt-4o-mini, moonshot-v1-8k, deepseek-chat
+
+endmenu
