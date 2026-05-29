@@ -1,0 +1,104 @@
+Executing action: reconfigure
+Running cmake in directory /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build
+Executing "cmake -G Ninja -B /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/chenhlsh/.espressif/python_env/idf6.0_py3.10_env/bin/python -DESP_PLATFORM=1 -DCCACHE_ENABLE=False /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample"...
+-- Component directory /home/chenhlsh/Desktop/xtense/esp-idf/components/json does not contain a CMakeLists.txt file. No component will be added
+-- Component directory /home/chenhlsh/Desktop/xtense/esp-idf/components/mqtt does not contain a CMakeLists.txt file. No component will be added
+-- Minimal build - OFF
+-- Building ESP-IDF components for target esp32s3
+NOTICE: Processing 2 dependencies:
+NOTICE: [1/2] espressif/led_strip (3.0.3)
+NOTICE: [2/2] idf (6.0.0)
+-- ESP-TEE is currently supported only on the esp32c6;esp32h2;esp32c5;esp32c61 SoCs
+-- KCONFIG_REPORT_VERBOSITY not set, using default
+-- Project sdkconfig file /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/sdkconfig
+Loading defaults file /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/sdkconfig.defaults...
+info: /tmp/kconfgen_tmp2ylzv1w6:10 CONFIG_COMPILER_OPTIMIZATION_DEFAULT was replaced with CONFIG_COMPILER_OPTIMIZATION_DEBUG
+info: Default value for ESP_MAIN_TASK_STACK_SIZE in sdkconfig is 32768 but it is 3584 according to Kconfig.
+Using default value from sdkconfig (32768).
+Configuration Report                                                     
+ ─────────────────────────────────────────────────────────────────────── 
+   Parser Version: 1                                                     
+   Verbosity: default                                                    
+   Defaults policy: sdkconfig                                            
+   Status: Finished with notifications                                   
+                                                                         
+  Default Value Mismatch                                                 
+   ───────────────────────────────────────────────────────────────────   
+    Using sdkconfig default values                                       
+    Config symbols with different default value between sdkconfig        
+    and Kconfig                                                          
+    ESP_MAIN_TASK_STACK_SIZE: Kconfig default value: 3584,               
+    sdkconfig default value: 32768                                       
+                                                                         
+    Choice symbols with different default selection between              
+    sdkconfig and Kconfig                                                
+    PARTITION_TABLE_TYPE: Kconfig default selection:                     
+    PARTITION_TABLE_SINGLE_APP, sdkconfig default selection:             
+    PARTITION_TABLE_CUSTOM                                               
+   ───────────────────────────────────────────────────────────────────   
+  Multiple Assignments                                                   
+   ────────────────────────────────────────────────────                  
+    Choice PARTITION_TABLE_TYPE:                                         
+        PARTITION_TABLE_SINGLE_APP (default selection)                   
+        PARTITION_TABLE_CUSTOM (default selection)                       
+        -> using PARTITION_TABLE_CUSTOM                                  
+   ────────────────────────────────────────────────────                  
+ ─────────────────────────────────────────────────────────────────────── 
+-- Compiler supported targets: xtensa-esp-elf
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- App "zig-sample-idf" version: 4629e1e-dirty
+-- Setting up mbedtls configuration
+-- Linkage type is PUBLIC
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_wdt/esp32s3/rom.wdt.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_system/ld/esp32s3/memory.ld.in
+--   -> Preprocessing .in script: /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_system/ld/esp32s3/memory.ld.in
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_system/ld/esp32s3/sections.ld.in
+--   -> Preprocessing .in script: /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_system/ld/esp32s3/sections.ld.in
+--   -> Applying ldgen processing: /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build/esp-idf/esp_system/ld/sections.ld.in
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_master.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_50.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_smp.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_dtm.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_test.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_scan.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libc.ld
+-- Adding linker script /home/chenhlsh/Desktop/xtense/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- Zig Example: main/examples/nullclaw-poc.zig
+-- Using cached espressif zig: /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build/zig-relsafe-x86_64-linux-musl-baseline/zig
+-- Using Zig executable: /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build/zig-relsafe-x86_64-linux-musl-baseline/zig
+-- Zig version: 0.16.0
+-- Zig RISC-V: Espressif fork detected — using named ESP CPU models
+-- ESP-IDF Target: esp32s3
+-- Architecture: xtensa
+-- Zig Target: xtensa-freestanding-none
+-- CPU Model: esp32s3
+-- Detected ESP toolchain version: 15.2.0_20251204
+-- Found toolchain include at: /home/chenhlsh/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/xtensa-esp-elf/include
+-- Found sys-include at: /home/chenhlsh/.espressif/tools/xtensa-esp-elf/esp-15.2.0_20251204/xtensa-esp-elf/xtensa-esp-elf/sys-include
+-- esp-idf/bindings.h already exists => /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/include/bindings.h
+-- LED Strip component found
+--   Added 1 include paths for LED Strip
+-- ESP-DSP not in build. To add: idf.py add-dependency espressif/esp-dsp
+-- ESP Wifi Remote not in build. To add: idf.py add-dependency espressif/esp_wifi_remote
+-- ESP Hosted not in build. To add: idf.py add-dependency espressif/esp_hosted
+-- ESP Matter not in build. To add: idf.py add-dependency espressif/esp_matter
+-- Using cached translate_c-standalone: /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build/translate_c-standalone/bin
+-- IDF_SYS_ZIG is set to: /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/imports/idf-sys.zig
+-- Component idf::esp_trace will be linked with -Wl,--whole-archive
+-- Components: app_trace app_update bootloader bootloader_support bt cmock console cxx driver efuse esp-tls esp_adc esp_app_format esp_blockdev esp_bootloader_format esp_coex esp_common esp_driver_ana_cmpr esp_driver_bitscrambler esp_driver_cam esp_driver_dac esp_driver_dma esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_i2s esp_driver_i3c esp_driver_isp esp_driver_jpeg esp_driver_ledc esp_driver_mcpwm esp_driver_parlio esp_driver_pcnt esp_driver_ppa esp_driver_rmt esp_driver_sd_intf esp_driver_sdio esp_driver_sdm esp_driver_sdmmc esp_driver_sdspi esp_driver_spi esp_driver_touch_sens esp_driver_tsens esp_driver_twai esp_driver_uart esp_driver_usb_serial_jtag esp_eth esp_event esp_gdbstub esp_hal_ana_cmpr esp_hal_ana_conv esp_hal_cam esp_hal_clock esp_hal_dma esp_hal_gpio esp_hal_gpspi esp_hal_i2c esp_hal_i2s esp_hal_ieee802154 esp_hal_jpeg esp_hal_lcd esp_hal_ledc esp_hal_mcpwm esp_hal_mspi esp_hal_parlio esp_hal_pcnt esp_hal_pmu esp_hal_ppa esp_hal_rmt esp_hal_rtc_timer esp_hal_security esp_hal_timg esp_hal_touch_sens esp_hal_twai esp_hal_uart esp_hal_usb esp_hal_wdt esp_hid esp_http_client esp_http_server esp_https_ota esp_https_server esp_hw_support esp_lcd esp_libc esp_local_ctrl esp_mm esp_netif esp_netif_stack esp_partition esp_phy esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_stdio esp_system esp_timer esp_trace esp_usb_cdc_rom_console esp_wifi espcoredump espressif__led_strip esptool_py fatfs freertos hal heap http_parser idf_test ieee802154 log lwip main mbedtls nvs_flash nvs_sec_provider openthread partition_table perfmon protobuf-c protocomm pthread rt sdmmc soc spi_flash spiffs tcp_transport ulp unity vfs wear_levelling wpa_supplicant xtensa
+-- Component paths: /home/chenhlsh/Desktop/xtense/esp-idf/components/app_trace /home/chenhlsh/Desktop/xtense/esp-idf/components/app_update /home/chenhlsh/Desktop/xtense/esp-idf/components/bootloader /home/chenhlsh/Desktop/xtense/esp-idf/components/bootloader_support /home/chenhlsh/Desktop/xtense/esp-idf/components/bt /home/chenhlsh/Desktop/xtense/esp-idf/components/cmock /home/chenhlsh/Desktop/xtense/esp-idf/components/console /home/chenhlsh/Desktop/xtense/esp-idf/components/cxx /home/chenhlsh/Desktop/xtense/esp-idf/components/driver /home/chenhlsh/Desktop/xtense/esp-idf/components/efuse /home/chenhlsh/Desktop/xtense/esp-idf/components/esp-tls /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_adc /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_app_format /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_blockdev /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_bootloader_format /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_coex /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_common /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_ana_cmpr /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_bitscrambler /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_cam /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_dac /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_dma /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_gpio /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_gptimer /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_i2c /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_i2s /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_i3c /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_isp /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_jpeg /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_ledc /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_mcpwm /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_parlio /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_pcnt /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_ppa /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_rmt /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_sd_intf /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_sdio /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_sdm /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_sdmmc /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_sdspi /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_spi /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_touch_sens /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_tsens /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_twai /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_uart /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_driver_usb_serial_jtag /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_eth /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_event /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_gdbstub /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_ana_cmpr /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_ana_conv /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_cam /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_clock /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_dma /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_gpio /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_gpspi /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_i2c /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_i2s /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_ieee802154 /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_jpeg /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_lcd /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_ledc /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_mcpwm /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_mspi /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_parlio /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_pcnt /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_pmu /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_ppa /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_rmt /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_rtc_timer /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_security /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_timg /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_touch_sens /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_twai /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_uart /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_usb /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hal_wdt /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hid /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_http_client /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_http_server /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_https_ota /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_https_server /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_hw_support /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_lcd /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_libc /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_local_ctrl /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_mm /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_netif /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_netif_stack /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_partition /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_phy /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_pm /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_psram /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_ringbuf /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_rom /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_security /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_stdio /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_system /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_timer /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_trace /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_usb_cdc_rom_console /home/chenhlsh/Desktop/xtense/esp-idf/components/esp_wifi /home/chenhlsh/Desktop/xtense/esp-idf/components/espcoredump /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/managed_components/espressif__led_strip /home/chenhlsh/Desktop/xtense/esp-idf/components/esptool_py /home/chenhlsh/Desktop/xtense/esp-idf/components/fatfs /home/chenhlsh/Desktop/xtense/esp-idf/components/freertos /home/chenhlsh/Desktop/xtense/esp-idf/components/hal /home/chenhlsh/Desktop/xtense/esp-idf/components/heap /home/chenhlsh/Desktop/xtense/esp-idf/components/http_parser /home/chenhlsh/Desktop/xtense/esp-idf/components/idf_test /home/chenhlsh/Desktop/xtense/esp-idf/components/ieee802154 /home/chenhlsh/Desktop/xtense/esp-idf/components/log /home/chenhlsh/Desktop/xtense/esp-idf/components/lwip /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/main /home/chenhlsh/Desktop/xtense/esp-idf/components/mbedtls /home/chenhlsh/Desktop/xtense/esp-idf/components/nvs_flash /home/chenhlsh/Desktop/xtense/esp-idf/components/nvs_sec_provider /home/chenhlsh/Desktop/xtense/esp-idf/components/openthread /home/chenhlsh/Desktop/xtense/esp-idf/components/partition_table /home/chenhlsh/Desktop/xtense/esp-idf/components/perfmon /home/chenhlsh/Desktop/xtense/esp-idf/components/protobuf-c /home/chenhlsh/Desktop/xtense/esp-idf/components/protocomm /home/chenhlsh/Desktop/xtense/esp-idf/components/pthread /home/chenhlsh/Desktop/xtense/esp-idf/components/rt /home/chenhlsh/Desktop/xtense/esp-idf/components/sdmmc /home/chenhlsh/Desktop/xtense/esp-idf/components/soc /home/chenhlsh/Desktop/xtense/esp-idf/components/spi_flash /home/chenhlsh/Desktop/xtense/esp-idf/components/spiffs /home/chenhlsh/Desktop/xtense/esp-idf/components/tcp_transport /home/chenhlsh/Desktop/xtense/esp-idf/components/ulp /home/chenhlsh/Desktop/xtense/esp-idf/components/unity /home/chenhlsh/Desktop/xtense/esp-idf/components/vfs /home/chenhlsh/Desktop/xtense/esp-idf/components/wear_levelling /home/chenhlsh/Desktop/xtense/esp-idf/components/wpa_supplicant /home/chenhlsh/Desktop/xtense/esp-idf/components/xtensa
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/chenhlsh/Desktop/xtense/zig-esp-idf-sample/build

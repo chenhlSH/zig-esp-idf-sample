@@ -25,32 +25,52 @@ const builtin = @import("builtin");
 const idf = @import("esp_idf");
 const sys = idf.sys;
 
-// ─── UART0 console I/O (uses ESP-IDF sys bindings, no @cImport) ───────
-const UART_PORT: sys.uart_port_t = 0;
+// ─── Console I/O via esp_rom_printf (works with ESP-IDF console, no driver)
+// ─── C wrappers (defined in wifi_default_config.c)
+extern fn wifi_get_default_config(out: *sys.wifi_init_config_t) void;
+extern fn init_console_uart() void;
+extern fn sync_time() void;
+extern fn console_getchar() c_int;
 
 fn uartWrite(s: []const u8) void {
-    _ = sys.uart_write_bytes(UART_PORT, s.ptr, s.len);
+    // esp_rom_printf needs a null-terminated string, use a temp buffer
+    var buf: [512]u8 = undefined;
+    const n = @min(s.len, buf.len - 1);
+    @memcpy(buf[0..n], s[0..n]);
+    buf[n] = 0;
+    _ = sys.esp_rom_printf("%s", @as([*c]const u8, @ptrCast(&buf)));
 }
 
 fn uartWriteLn(s: []const u8) void {
     uartWrite(s);
-    uartWrite("\r\n");
+    _ = sys.esp_rom_printf("\r\n");
 }
 
 fn uartReadLine(buf: []u8) ?[]u8 {
-    if (!sys.uart_is_driver_installed(UART_PORT)) return null;
     var i: usize = 0;
     while (i < buf.len - 1) {
-        var byte: [1]u8 = undefined;
-        const n = sys.uart_read_bytes(UART_PORT, &byte, 1, sys.portMAX_DELAY);
-        if (n <= 0) continue;
-        const ch = byte[0];
-        if (ch == '\n' or ch == '\r') {
-            if (i > 0) break;
+        const ch = console_getchar();
+        if (ch < 0) continue; // -1 means no data, yielded to idle task
+        const c: u8 = @intCast(ch);
+        if (c == '\n' or c == '\r') {
+            if (i > 0) {
+                _ = sys.esp_rom_printf("\r\n");
+                break;
+            }
             continue;
         }
-        buf[i] = ch;
+        // Handle backspace/delete
+        if ((c == 0x7F or c == 0x08) and i > 0) {
+            i -= 1;
+            _ = sys.esp_rom_printf("\x08 \x08"); // erase char on terminal
+            continue;
+        }
+        // Ignore other control characters
+        if (c < 0x20) continue;
+        buf[i] = c;
         i += 1;
+        // Echo character back to terminal
+        _ = sys.esp_rom_printf("%c", @as(c_int, c));
     }
     buf[i] = 0;
     return buf[0..i];
@@ -111,27 +131,9 @@ fn wifiConnect() !void {
     try idf.event.loopCreateDefault();
     _ = sys.esp_netif_create_default_wifi_sta();
 
-    // Set osi_funcs via @extern (direct reference has @compileError in bindings)
-    const osi_ptr = @extern(*sys.wifi_osi_funcs_t, .{ .name = "g_wifi_osi_funcs" });
-    var cfg = std.mem.zeroes(sys.wifi_init_config_t);
-    cfg.osi_funcs = osi_ptr;
-    cfg.wpa_crypto_funcs = sys.g_wifi_default_wpa_crypto_funcs;
-    // Fill buffer counts from sdkconfig defaults (zero is invalid)
-    cfg.static_rx_buf_num = 10;
-    cfg.dynamic_rx_buf_num = 32;
-    cfg.tx_buf_type = 1;
-    cfg.static_tx_buf_num = 0;
-    cfg.dynamic_tx_buf_num = 32;
-    cfg.rx_mgmt_buf_type = 0;
-    cfg.rx_mgmt_buf_num = 5;
-    cfg.mgmt_sbuf_num = 32;
-    cfg.ampdu_rx_enable = 1;
-    cfg.ampdu_tx_enable = 1;
-    cfg.nvs_enable = 1;
-    cfg.rx_ba_win = 6;
-    cfg.beacon_max_len = 752;
-    cfg.tx_hetb_queue_num = 1;
-    cfg.magic = 0x1F2F3F4F; // WIFI_INIT_CONFIG_MAGIC — required by driver
+    // Use C wrapper to get proper WIFI_INIT_CONFIG_DEFAULT()
+    var cfg: sys.wifi_init_config_t = undefined;
+    wifi_get_default_config(&cfg);
     try idf.err.espCheckError(sys.esp_wifi_init(&cfg));
 
     _ = try idf.event.handlerInstanceRegister(sys.WIFI_EVENT, idf.event.ANY_ID, &ncWifiEvent, null);
@@ -168,29 +170,33 @@ fn copyZ(dst: anytype, src: [*:0]const u8) void {
 // Provider: OpenAI-compatible LLM API (mirrors providers/openai.zig)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Static buffers to avoid stack overflow (16KB + 4KB on stack would blow 8KB limit)
+var g_resp_buf: [16384]u8 = undefined;
+var g_body_buf: [4096]u8 = undefined;
+var g_auth_buf: [256]u8 = undefined;
+
 fn callLLM(allocator: std.mem.Allocator, user_msg: []const u8) ![]u8 {
     // Build request JSON manually (std.io not available on freestanding)
-    var body_buf: [4096]u8 = undefined;
     var pos: usize = 0;
 
-    pos += bufWrite(body_buf[pos..], "{\"model\":\"");
-    pos += bufWrite(body_buf[pos..], std.mem.span(MODEL));
-    pos += bufWrite(body_buf[pos..], "\",\"messages\":[{\"role\":\"system\",\"content\":\"");
-    pos += bufWriteJsonStr(body_buf[pos..], SYSTEM_PROMPT);
-    pos += bufWrite(body_buf[pos..], "\"},{\"role\":\"user\",\"content\":\"");
-    pos += bufWriteJsonStr(body_buf[pos..], user_msg);
-    pos += bufWrite(body_buf[pos..], "\"}],\"tools\":");
-    pos += bufWrite(body_buf[pos..], TOOLS_JSON);
-    body_buf[pos] = '}';
+    pos += bufWrite(g_body_buf[pos..], "{\"model\":\"");
+    pos += bufWrite(g_body_buf[pos..], std.mem.span(MODEL));
+    pos += bufWrite(g_body_buf[pos..], "\",\"messages\":[{\"role\":\"system\",\"content\":\"");
+    pos += bufWriteJsonStr(g_body_buf[pos..], SYSTEM_PROMPT);
+    pos += bufWrite(g_body_buf[pos..], "\"},{\"role\":\"user\",\"content\":\"");
+    pos += bufWriteJsonStr(g_body_buf[pos..], user_msg);
+    pos += bufWrite(g_body_buf[pos..], "\"}],\"tools\":");
+    pos += bufWrite(g_body_buf[pos..], TOOLS_JSON);
+    g_body_buf[pos] = '}';
     pos += 1;
-    const body = body_buf[0..pos];
+    const body = g_body_buf[0..pos];
 
-    var auth_buf: [256]u8 = undefined;
-    const auth = std.fmt.bufPrintZ(&auth_buf, "Bearer {s}", .{std.mem.span(API_KEY)}) catch return error.AuthTooLong;
+    const auth = std.fmt.bufPrintZ(&g_auth_buf, "Bearer {s}", .{std.mem.span(API_KEY)}) catch return error.AuthTooLong;
 
     var http_cfg = std.mem.zeroes(sys.esp_http_client_config_t);
     http_cfg.url = API_URL;
-    http_cfg.skip_cert_common_name_check = true;
+    http_cfg.timeout_ms = 10000;
+    http_cfg.crt_bundle_attach = &sys.esp_crt_bundle_attach;
 
     var client = idf.http.Client.init(&http_cfg);
     defer client.deinit() catch {};
@@ -202,24 +208,40 @@ fn callLLM(allocator: std.mem.Allocator, user_msg: []const u8) ![]u8 {
 
     _ = sys.esp_rom_printf("[llm] Requesting %s...\r\n", sys.CONFIG_NULLCLAW_LLM_MODEL);
 
-    client.perform() catch |err| {
-        _ = sys.esp_rom_printf("[llm] HTTP error: %s\r\n", @errorName(err).ptr);
+    // Manual HTTP flow: open() → write body → fetchHeaders() → read()
+    // perform() consumes the response internally, so read() returns 0 after it.
+    client.open(@intCast(body.len)) catch |err| {
+        _ = sys.esp_rom_printf("[llm] open err: %s\r\n", @errorName(err).ptr);
         return error.HttpFailed;
     };
-
+    _ = client.write(body) catch |err| {
+        _ = sys.esp_rom_printf("[llm] write err: %s\r\n", @errorName(err).ptr);
+        client.close() catch {};
+        return error.HttpFailed;
+    };
+    _ = client.fetchHeaders();
     const status = client.getStatusCode();
     if (status != 200) {
         _ = sys.esp_rom_printf("[llm] HTTP status: %d\r\n", status);
+        client.close() catch {};
         return error.HttpBadStatus;
     }
+    const content_len = client.getContentLength();
+    _ = sys.esp_rom_printf("[llm] content-length: %d\r\n", @as(c_int, @intCast(content_len)));
 
-    var resp_buf: [16384]u8 = undefined;
-    const n = client.readResponse(&resp_buf) catch |err| {
-        _ = sys.esp_rom_printf("[llm] Read error: %s\r\n", @errorName(err).ptr);
-        return error.HttpReadFailed;
-    };
+    var total: i64 = 0;
+    const want: i64 = if (content_len > 0) content_len else @as(i64, @intCast(g_resp_buf.len));
+    while (total < want) {
+        const remaining: c_int = @intCast(@min(want - total, 4096));
+        const n = sys.esp_http_client_read(client.handle, @ptrCast(g_resp_buf[@intCast(total)..].ptr), remaining);
+        if (n <= 0) break;
+        total += n;
+    }
+    client.close() catch {};
+    _ = sys.esp_rom_printf("[llm] Read %d bytes\r\n", @as(c_int, @intCast(total)));
+    if (total == 0) return error.HttpReadFailed;
 
-    return allocator.dupe(u8, resp_buf[0..@intCast(n)]);
+    return allocator.dupe(u8, g_resp_buf[0..@intCast(total)]);
 }
 
 fn bufWrite(dst: []u8, src: []const u8) usize {
@@ -380,7 +402,8 @@ fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
                 const name = name_val.string;
                 const tool_args = args_val.string;
 
-                _ = sys.esp_rom_printf("[agent] Tool: %s\r\n", name.ptr);
+                uartWrite("[agent] Tool: ");
+                uartWriteLn(name);
                 const result = executeTool(ta, name, tool_args);
 
                 const suffix = std.fmt.bufPrint(input_buf[input_len..], "\n\n[Tool '{s}' result: {s}]", .{ name, result }) catch break;
@@ -411,6 +434,9 @@ export fn app_main() callconv(.c) void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
+    // Set up UART0 driver + VFS for stdin so console_getchar() works
+    init_console_uart();
+
     idf.nvs.flashInitOrErase() catch |err| {
         _ = sys.esp_rom_printf("[nvs] Error: %s\r\n", @errorName(err).ptr);
         return;
@@ -420,6 +446,11 @@ export fn app_main() callconv(.c) void {
         _ = sys.esp_rom_printf("[wifi] Error: %s\r\n", @errorName(err).ptr);
         return;
     };
+
+    // Disable WiFi power-save to reduce peak current draw
+    _ = sys.esp_wifi_set_ps(sys.WIFI_PS_NONE);
+    // Sync system clock via NTP — required for TLS certificate validation
+    sync_time();
 
     uartWriteLn("");
     uartWriteLn("+------------------------------------------+");

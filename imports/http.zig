@@ -183,6 +183,12 @@ pub const Client = struct {
         return errors.espCheckError(sys.esp_http_client_perform(self.handle));
     }
 
+    /// Perform a complete blocking request/response cycle.
+    /// Returns the raw ESP error code so the caller can use `esp_err_to_name()`.
+    pub fn performRaw(self: Client) sys.esp_err_t {
+        return sys.esp_http_client_perform(self.handle);
+    }
+
     /// Open the connection (for streaming writes).
     /// `write_len` is Content-Length; pass 0 for requests without a body.
     pub fn open(self: Client, write_len: c_int) !void {
