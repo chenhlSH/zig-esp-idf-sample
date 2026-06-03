@@ -1,150 +1,116 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/kassane/zig-esp-idf-sample)
+# Zig + ESP-IDF Sample Project
 
-# Using Zig Language & Toolchain with ESP-IDF
+This repository is a fork of [kassane/zig-esp-idf-sample](https://github.com/kassane/zig-esp-idf-sample). It keeps the upstream Apache-2.0 / MIT-0 license model and updates the README to match what is actually in this tree.
 
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-H4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+## Status
 
-## STATUS: Experimental
+Experimental. The project is a sample integration layer for building Zig code inside an ESP-IDF application, not a drop-in replacement for the ESP-IDF C/C++ toolchain.
 
-## Description
+## What This Repo Contains
 
-This project aims to integrate Zig language and toolchain with the [Espressif IoT Development Framework](https://github.com/espressif/esp-idf) for enhanced development capabilities on ESP32 and its variants.
+- A Zig entry point in [main/app.zig](main/app.zig)
+- Reusable Zig wrappers in [imports/](imports)
+- Example firmware modules in [main/examples/](main/examples)
+- ESP-IDF component wiring in [main/CMakeLists.txt](main/CMakeLists.txt)
+- C/C++ shims used by the ESP-IDF component in [main/](main)
 
-More information about building and using Zig with ESP-IDF can be found in the [documentation](docs/getting-started.md).
+## Actual Runtime Shape
 
+The default build uses [main/app.zig](main/app.zig). Example selection is handled in [main/CMakeLists.txt](main/CMakeLists.txt) through Kconfig switches, and the selected Zig file is passed to `build.zig` with `-Dexample=...`.
+
+Current example files include:
+
+- `smartled-rgb.zig`
+- `wifi-station.zig`
+- `dsp-math.zig`
+- `gpio-blink.zig`
+- `http-server.zig`
+- `ble-gatt-server.zig`
+- `i2c-scan.zig`
+- `uart-echo.zig`
+- `matter-light.zig`
+- `nullclaw-poc.zig`
+
+### Example: nullclaw-poc.zig
+
+Detailed PoC demonstrating an embedded AI agent that can call tools (GPIO control and file creation) via an OpenAI-compatible provider.
+
+- Purpose: a small proof-of-concept that shows a REPL-driven agent running on the ESP32 which can:
+	- Send prompts to an LLM provider over HTTPS and parse responses.
+	- Execute declared "tool" functions returned by the LLM (e.g. `gpio_set`, `file_create`).
+	- Echo content responses back to the UART console.
+
+- Location: [main/examples/nullclaw-poc.zig](main/examples/nullclaw-poc.zig)
+
+- Architecture / components (mirrors the in-repo layout):
+	- Channel: UART REPL handled via console wrappers.
+	- Provider: OpenAI-compatible HTTP LLM calls (`callLLM` in the example).
+	- Tools: `gpio_set` (control GPIO pins) and `file_create` (stores content in NVS as a simple file backing store).
+	- Agent loop: a ReAct-like loop that parses JSON responses, executes tool calls, and injects tool results back into the conversation for up to 3 rounds.
+
+- How it works (high level):
+	1. The REPL reads a user line from UART.
+	2. The agent sends a JSON request to the configured LLM endpoint (model, system prompt and a `tools` schema are included).
+	3. If the model's response contains `tool_calls`, the example executes each tool and appends the result to the prompt, repeating up to 3 rounds; otherwise it prints the `content` string to UART.
+
+- Build & run:
+	- Configure options with `idf.py menuconfig` (see configuration items below).
+	- Build the example with:
+
+```bash
+idf.py -DCONFIG_ZIG_EXAMPLE_NULLCLAW_POC=y build
+idf.py -DCONFIG_ZIG_EXAMPLE_NULLCLAW_POC=y flash
+```
+
+- Configuration (Kconfig items referenced in the source):
+	- `CONFIG_NULLCLAW_LLM_API_URL` — LLM HTTP endpoint URL
+	- `CONFIG_NULLCLAW_LLM_API_KEY` — API key / bearer token
+	- `CONFIG_NULLCLAW_LLM_MODEL` — model identifier used in the request JSON
+	- Standard WiFi config: `CONFIG_ESP_WIFI_SSID`, `CONFIG_ESP_WIFI_PASSWORD`
+
+- Important implementation notes & limitations:
+	- The example uses fixed-size static buffers (16KiB response buffer, 4KiB request buffer) to avoid dynamic allocations on the stack.
+	- `file_create` stores content into NVS (key truncated to 15 chars) — there is no POSIX filesystem example here; the project uses NVS as a tiny key/value "file" backend.
+	- Console I/O relies on C shim functions in `main/` such as `init_console_uart()` and `console_getchar()`.
+	- TLS certificate validation requires the clock to be synchronized (`sync_time()` is called at startup).
+	- The LLM response parsing is minimal — the PoC expects a JSON structure with `choices[0].message` and supports `tool_calls` arrays as produced by the example provider format.
+
+If you want, I can also add a short troubleshooting subsection (common errors, how to inspect NVS entries, and example LLM prompts that trigger tool calls). 
 ## Prerequisites
 
-- [Zig](https://ziglang.org/download) toolchain - v0.16.0 or master
-- [ESP-IDF](https://github.com/espressif/esp-idf) - v5.x or v6.x or master
+- Zig 0.16.0 or a compatible build
+- ESP-IDF 5.0 or 6.0
+- A target supported by the current Zig/ESP-IDF combination
 
-### Targets Allowed
+## Targets
 
-<table>
-<thead>
-  <tr>
-    <th>Target</th>
-    <th>Architecture</th>
-    <th>Features</th>
-    <th>Zig Build Configuration</th>
-  </tr>
-</thead>
-<tbody>
-  <tr>
-    <td><strong>ESP32</strong></td>
-    <td>Xtensa LX6</td>
-    <td>Dual-core, WiFi, BT Classic, BLE</td>
-    <td><code>-Dtarget=xtensa-freestanding-none -Dcpu=esp32</code></td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-S2</strong></td>
-    <td>Xtensa LX7</td>
-    <td>Single-core, WiFi, USB OTG</td>
-    <td><code>-Dtarget=xtensa-freestanding-none -Dcpu=esp32s2</code></td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-S3</strong></td>
-    <td>Xtensa LX7</td>
-    <td>Dual-core, WiFi, BLE 5.0, USB OTG, AI</td>
-    <td><code>-Dtarget=xtensa-freestanding-none -Dcpu=esp32s3</code></td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-C2</strong></td>
-    <td>RISC-V</td>
-    <td>Single-core, WiFi, BLE 5.0, Low-cost</td>
-    <td rowspan="2"><code>-Dtarget=riscv32-freestanding-none -Dcpu=generic_rv32+m+c+zicsr+zifencei</code></td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-C3</strong></td>
-    <td>RISC-V</td>
-    <td>Single-core, WiFi, BLE 5.0, Low-power</td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-C5</strong></td>
-    <td>RISC-V</td>
-    <td>Single-core, WiFi 6, BLE 5.0</td>
-    <td rowspan="5"><code>-Dtarget=riscv32-freestanding-none -Dcpu=generic_rv32+m+a+c+zicsr+zifencei</code></td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-C6</strong></td>
-    <td>RISC-V</td>
-    <td>Single-core, WiFi 6, BLE 5.0, Zigbee, Thread</td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-C61</strong></td>
-    <td>RISC-V</td>
-    <td>Single-core, WiFi 6, BLE 5.0, Low-cost</td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-H2</strong></td>
-    <td>RISC-V</td>
-    <td>BLE 5.0, Zigbee 3.0, Thread, No WiFi</td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-H21</strong></td>
-    <td>RISC-V</td>
-    <td>BLE 5.0, Zigbee 3.0, Thread, No WiFi</td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-H4</strong></td>
-    <td>RISC-V</td>
-    <td>BLE 5.2, Zigbee, Thread, FPU, No WiFi</td>
-    <td><code>-Dtarget=riscv32-freestanding-eabihf -Dcpu=esp32h4</code> (Espressif fork) / <code>generic_rv32+m+a+c+f+zicsr+zifencei</code> (upstream)</td>
-  </tr>
-  <tr>
-    <td><strong>ESP32-P4</strong></td>
-    <td>RISC-V</td>
-    <td>Dual-core, AI, DSP, FPU, No WiFi/BT</td>
-    <td><code>-Dtarget=riscv32-freestanding-eabihf -Dcpu=esp32p4</code> (Espressif fork) / <code>generic_rv32+m+a+c+f+zicsr+zifencei</code> (upstream)</td>
-  </tr>
-</tbody>
-</table>
+The current build logic in [build.zig](build.zig) is aimed at these ESP32 families:
 
-> [!WARNING]
-> **Xtensa Architecture Support**
-> 
-> The upstream [Zig compiler](https://ziglang.org/download) (LLVM backend) does not support Xtensa architecture. For ESP32, ESP32-S2, and ESP32-S3 targets, you must use the [Espressif Zig fork](https://github.com/kassane/zig-espressif-bootstrap/releases).
-> 
-> - **RISC-V targets (all variants):** Works with upstream Zig ✅ (uses generic_rv32 fallback); named CPU models available with Espressif fork
-> - **Xtensa targets (ESP32/S2/S3):** Requires [zig-xtensa](https://github.com/kassane/zig-espressif-bootstrap/releases) (auto-downloaded)
-> 
-> The build system automatically downloads the correct toolchain for your target.
+- ESP32
+- ESP32-S2
+- ESP32-S3
+- ESP32-C2
+- ESP32-C3
+- ESP32-C5
+- ESP32-C6
+- ESP32-C61
+- ESP32-H2
+- ESP32-H21
+- ESP32-H4
+- ESP32-P4
 
+RISC-V targets can work with upstream Zig using generic CPU fallbacks. Xtensa targets still require an Espressif-compatible Zig toolchain.
 
-### Key Features:
+## Notes
 
-- **Zig Language Integration**: Use the Zig programming language to write firmware code. It provides modern language features such as comptime, meta-programming, and error handling.
+- The allocator examples in the code are intentionally small and use ESP-IDF heap wrappers, not custom filesystem abstractions.
+- The older README mentioned file systems more broadly than this repository currently demonstrates directly, so that wording has been removed here.
 
-- **Zig Toolchain Integration**: The Zig toolchain can be used to build zig libraries and executables, and can also be integrated with the ESP-IDF build system. Also, system compiler and linker can be replaced to `zig cc`/`zig c++`.
-  - **Note:** For C++ support, zig toolchain uses `llvm-libc++` ABI by default.
+## License
 
-- **ESP-IDF Compatibility**: Seamlessly integrate Zig with the ESP-IDF framework, allowing developers to leverage the rich set of APIs and functionalities provided by ESP-IDF for IoT development.
+This fork keeps the upstream dual-license setup:
 
-- **Build System Configuration**: Using CMake to build Zig libraries allows easy integration with existing ESP-IDF projects while providing efficient dependency management and build configuration.
-
-- **Cross-Platform Development**: Facilitate development across various ESP32 variants including ESP32-C2, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-H2, ESP32-P4, ESP32-S2, and ESP32-S3, ensuring broad compatibility and versatility.
-
-
-### About Allocators
-
-> [!NOTE]
->
-> Asserts allocations are within `@alignOf(std.c.max_align_t)` and directly calls
-> `malloc`/`free`. Does not attempt to utilize `malloc_usable_size`.
->
-> - `std.heap.raw_c_allocator` allocator is safe to use as the backing allocator with `std.heap.ArenaAllocator` for example and is more optimal in such a case than `std.heap.c_allocator`. - ref.: [std-doc](https://ziglang.org/documentation/0.15.2/std/#std.heap.raw_c_allocator)
->
-> - `std.heap.ArenaAllocator` takes an existing allocator, wraps it, and provides an interface where you can allocate without freeing, and then free it all together. - ref.: [std-doc](https://ziglang.org/documentation/master/std/#std.heap.ArenaAllocator)
->
-> **Custom Allocators** (based on `std.heap.raw_c_allocator`)
->
-> - `idf.heap.HeapCapsAllocator` - ref.: [espressif-doc](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/mem_alloc.html)
-> - `idf.heap.MultiHeapAllocator` - ref.: [espressif-doc](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/mem_alloc.html)
-> - `idf.heap.VPortAllocator` - ref.: [FreeRTOS-doc](https://www.freertos.org/a00111.html)
-
-
-### License
-
-This project is licensed twice:
-- [Apache](LICENSE-APACHE)
+- [Apache-2.0](LICENSE-APACHE)
 - [MIT-0](LICENSE-MIT)
+
+Please preserve the original license notices when redistributing or reusing this code.
