@@ -175,7 +175,7 @@ var g_resp_buf: [16384]u8 = undefined;
 var g_body_buf: [4096]u8 = undefined;
 var g_auth_buf: [256]u8 = undefined;
 
-fn callLLM(allocator: std.mem.Allocator, user_msg: []const u8) ![]u8 {
+fn callLLM(user_msg: []const u8) ![]const u8 {
     // Build request JSON manually (std.io not available on freestanding)
     var pos: usize = 0;
 
@@ -241,7 +241,9 @@ fn callLLM(allocator: std.mem.Allocator, user_msg: []const u8) ![]u8 {
     _ = sys.esp_rom_printf("[llm] Read %d bytes\r\n", @as(c_int, @intCast(total)));
     if (total == 0) return error.HttpReadFailed;
 
-    return allocator.dupe(u8, g_resp_buf[0..@intCast(total)]);
+    // Return a direct slice of the static buffer — no allocation needed.
+    // The caller must parse JSON before the next callLLM overwrites the buffer.
+    return g_resp_buf[0..@intCast(total)];
 }
 
 fn bufWrite(dst: []u8, src: []const u8) usize {
@@ -344,25 +346,25 @@ fn execFileCreate(allocator: std.mem.Allocator, args: []const u8) []const u8 {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
-    var turn_arena = std.heap.ArenaAllocator.init(allocator);
-    defer turn_arena.deinit();
-    const ta = turn_arena.allocator();
-
     var input_buf: [1024]u8 = undefined;
     @memcpy(input_buf[0..user_input.len], user_input);
     var input_len = user_input.len;
 
     for (0..3) |_| {
-        const response = callLLM(ta, input_buf[0..input_len]) catch {
-            uartWriteLn("[LLM request failed]");
+        const response = callLLM(input_buf[0..input_len]) catch |err| {
+            _ = sys.esp_rom_printf("[LLM err: %s]\r\n", @errorName(err).ptr);
             return;
         };
 
-        const parsed = std.json.parseFromSlice(std.json.Value, ta, response, .{}) catch {
-            uartWriteLn("[JSON parse error]");
+        // Per-iteration arena for JSON parsing + tool execution — freed at end
+        var iter_arena = std.heap.ArenaAllocator.init(allocator);
+        const ia = iter_arena.allocator();
+
+        const parsed = std.json.parseFromSlice(std.json.Value, ia, response, .{}) catch |err| {
+            _ = sys.esp_rom_printf("[JSON err: %s, len=%d]\r\n", @errorName(err).ptr, @as(c_int, @intCast(response.len)));
+            iter_arena.deinit();
             return;
         };
-        defer parsed.deinit();
 
         const root = parsed.value;
 
@@ -393,21 +395,25 @@ fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
 
         if (message.object.get("tool_calls")) |tc| {
             if (tc == .array and tc.array.items.len > 0) {
-                const tc_item = tc.array.items[0];
-                const func = tc_item.object.get("function") orelse continue;
-                const name_val = func.object.get("name") orelse continue;
-                const args_val = func.object.get("arguments") orelse continue;
-                if (name_val != .string or args_val != .string) continue;
+                // Execute ALL tool calls in the response, not just the first one
+                for (tc.array.items) |tc_item| {
+                    const func = tc_item.object.get("function") orelse continue;
+                    const name_val = func.object.get("name") orelse continue;
+                    const args_val = func.object.get("arguments") orelse continue;
+                    if (name_val != .string or args_val != .string) continue;
 
-                const name = name_val.string;
-                const tool_args = args_val.string;
+                    const name = name_val.string;
+                    const tool_args = args_val.string;
 
-                uartWrite("[agent] Tool: ");
-                uartWriteLn(name);
-                const result = executeTool(ta, name, tool_args);
+                    uartWrite("[agent] Tool: ");
+                    uartWriteLn(name);
+                    const result = executeTool(ia, name, tool_args);
 
-                const suffix = std.fmt.bufPrint(input_buf[input_len..], "\n\n[Tool '{s}' result: {s}]", .{ name, result }) catch break;
-                input_len += suffix.len;
+                    const suffix = std.fmt.bufPrint(input_buf[input_len..], "\n\n[Tool '{s}' result: {s}]", .{ name, result }) catch break;
+                    input_len += suffix.len;
+                }
+                parsed.deinit();
+                iter_arena.deinit();
                 continue;
             }
         }
@@ -419,6 +425,8 @@ fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
                 uartWriteLn("[No content]");
             }
         }
+        parsed.deinit();
+        iter_arena.deinit();
         return;
     }
     uartWriteLn("[Max tool rounds reached]");
