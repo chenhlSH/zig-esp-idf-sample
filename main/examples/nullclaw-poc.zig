@@ -28,17 +28,7 @@ const sys = idf.sys;
 // ─── Console I/O via esp_rom_printf (works with ESP-IDF console, no driver)
 // ─── C wrappers (defined in wifi_default_config.c)
 extern fn wifi_get_default_config(out: *sys.wifi_init_config_t) void;
-extern fn init_console_uart() void;
-extern fn sync_time() void;
 extern fn console_getchar() c_int;
-
-// ─── Protocol engine (defined in proto_engine.c)
-extern fn proto_init() void;
-extern fn proto_uart_tx_sync(tx_pin: c_int, baud: c_int, data: [*c]const u8, len: c_int) c_int;
-extern fn proto_spi_transfer_sync(clk: c_int, mosi: c_int, miso: c_int, cs: c_int, tx: [*c]const u8, rx: [*c]u8, len: c_int, hz: c_int) c_int;
-extern fn proto_i2c_write_sync(sda: c_int, scl: c_int, addr: u8, data: [*c]const u8, len: c_int) c_int;
-extern fn proto_i2c_read_sync(sda: c_int, scl: c_int, addr: u8, data: [*c]u8, len: c_int) c_int;
-extern fn proto_i2c_scan(sda: c_int, scl: c_int) u32;
 
 fn uartWrite(s: []const u8) void {
     // esp_rom_printf needs a null-terminated string, use a temp buffer
@@ -61,24 +51,11 @@ fn uartReadLine(buf: []u8) ?[]u8 {
         if (ch < 0) continue; // -1 means no data, yielded to idle task
         const c: u8 = @intCast(ch);
         if (c == '\n' or c == '\r') {
-            if (i > 0) {
-                _ = sys.esp_rom_printf("\r\n");
-                break;
-            }
+            if (i > 0) break;
             continue;
         }
-        // Handle backspace/delete
-        if ((c == 0x7F or c == 0x08) and i > 0) {
-            i -= 1;
-            _ = sys.esp_rom_printf("\x08 \x08"); // erase char on terminal
-            continue;
-        }
-        // Ignore other control characters
-        if (c < 0x20) continue;
         buf[i] = c;
         i += 1;
-        // Echo character back to terminal
-        _ = sys.esp_rom_printf("%c", @as(c_int, c));
     }
     buf[i] = 0;
     return buf[0..i];
@@ -91,25 +68,14 @@ const MODEL: [*:0]const u8 = sys.CONFIG_NULLCLAW_LLM_MODEL;
 
 // ─── Provider: system prompt & tool schemas (mirrors providers/openai.zig)
 const SYSTEM_PROMPT =
-    \\You are NullClaw, an embedded AI assistant on ESP32-S3 with protocol tools.
-    \\Tools: gpio_set, file_create, uart_tx, spi_transfer, i2c_scan, i2c_write, i2c_read.
-    \\GPIO pins: 0-21, 35-48. Pins 22-34 are input-only (no output). Avoid GPIO 0,1,3,44,45.
-    \\uart_tx: bit-bang UART on any output pin (baud: 300-115200). Data is hex-encoded.
-    \\spi_transfer: bit-bang SPI (Mode 0). Data is hex-encoded.
-    \\i2c_scan: scan I2C bus for devices. Returns list of found addresses.
-    \\i2c_write/read: bit-bang I2C (7-bit address). Data is hex-encoded.
-    \\Always use i2c_scan before i2c_write/read to find device addresses.
-    \\Max 3 concurrent protocol operations (FreeRTOS task pool). Be concise.
+    \\You are NullClaw, an embedded AI assistant on ESP32-S3.
+    \\Tools: gpio_set(pin,level) and file_create(path,content).
+    \\Use tools when asked to control hardware or create files. Be concise.
 ;
 
 const TOOLS_JSON =
-    \\[{"type":"function","function":{"name":"gpio_set","description":"Set GPIO pin level (0-21, 35-48 output; 1-21, 35-48 input ok)","parameters":{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin 0-48"},"level":{"type":"integer","description":"0=low 1=high"}},"required":["pin","level"]}}},
-    \\{"type":"function","function":{"name":"file_create","description":"Create a file","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"File content"}},"required":["path","content"]}}},
-    \\{"type":"function","function":{"name":"uart_tx","description":"Send bytes via software UART (bit-bang).","parameters":{"type":"object","properties":{"pin":{"type":"integer","description":"TX GPIO pin (output-capable: 0-21,35-48)"},"baud":{"type":"integer","description":"Baud rate (300-115200)"},"data":{"type":"string","description":"Hex-encoded bytes, e.g. '48656C6C6F' for 'Hello'"}},"required":["pin","baud","data"]}}},
-    \\{"type":"function","function":{"name":"spi_transfer","description":"Bit-bang SPI Mode 0 transfer. Returns hex MISO data.","parameters":{"type":"object","properties":{"clk":{"type":"integer","description":"CLK GPIO"},"mosi":{"type":"integer","description":"MOSI GPIO"},"miso":{"type":"integer","description":"MISO GPIO (-1 if none)"},"cs":{"type":"integer","description":"CS GPIO (-1 if none)"},"data":{"type":"string","description":"Hex-encoded TX data"},"clock_hz":{"type":"integer","description":"SPI clock Hz"}},"required":["clk","mosi","miso","cs","data","clock_hz"]}}},
-    \\{"type":"function","function":{"name":"i2c_scan","description":"Scan I2C bus for all responding devices (0x03-0x77).","parameters":{"type":"object","properties":{"sda":{"type":"integer","description":"SDA GPIO pin"},"scl":{"type":"integer","description":"SCL GPIO pin"}},"required":["sda","scl"]}}},
-    \\{"type":"function","function":{"name":"i2c_write","description":"Bit-bang I2C write to 7-bit address.","parameters":{"type":"object","properties":{"sda":{"type":"integer","description":"SDA GPIO"},"scl":{"type":"integer","description":"SCL GPIO"},"addr":{"type":"integer","description":"7-bit I2C address (0x03-0x77)"},"data":{"type":"string","description":"Hex-encoded bytes"}},"required":["sda","scl","addr","data"]}}},
-    \\{"type":"function","function":{"name":"i2c_read","description":"Bit-bang I2C read from 7-bit address. Returns hex data.","parameters":{"type":"object","properties":{"sda":{"type":"integer","description":"SDA GPIO"},"scl":{"type":"integer","description":"SCL GPIO"},"addr":{"type":"integer","description":"7-bit I2C address (0x03-0x77)"},"len":{"type":"integer","description":"Bytes to read (max 64)"}},"required":["sda","scl","addr","len"]}}}]
+    \\[{"type":"function","function":{"name":"gpio_set","description":"Set GPIO pin level","parameters":{"type":"object","properties":{"pin":{"type":"integer","description":"GPIO pin number"},"level":{"type":"integer","description":"0=low 1=high"}},"required":["pin","level"]}}},
+    \\{"type":"function","function":{"name":"file_create","description":"Create a file","parameters":{"type":"object","properties":{"path":{"type":"string","description":"File path"},"content":{"type":"string","description":"File content"}},"required":["path","content"]}}}]
 ;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -194,7 +160,7 @@ var g_resp_buf: [16384]u8 = undefined;
 var g_body_buf: [4096]u8 = undefined;
 var g_auth_buf: [256]u8 = undefined;
 
-fn callLLM(user_msg: []const u8) ![]const u8 {
+fn callLLM(allocator: std.mem.Allocator, user_msg: []const u8) ![]u8 {
     // Build request JSON manually (std.io not available on freestanding)
     var pos: usize = 0;
 
@@ -214,8 +180,7 @@ fn callLLM(user_msg: []const u8) ![]const u8 {
 
     var http_cfg = std.mem.zeroes(sys.esp_http_client_config_t);
     http_cfg.url = API_URL;
-    http_cfg.timeout_ms = 10000;
-    http_cfg.crt_bundle_attach = &sys.esp_crt_bundle_attach;
+    http_cfg.skip_cert_common_name_check = true;
 
     var client = idf.http.Client.init(&http_cfg);
     defer client.deinit() catch {};
@@ -227,42 +192,23 @@ fn callLLM(user_msg: []const u8) ![]const u8 {
 
     _ = sys.esp_rom_printf("[llm] Requesting %s...\r\n", sys.CONFIG_NULLCLAW_LLM_MODEL);
 
-    // Manual HTTP flow: open() → write body → fetchHeaders() → read()
-    // perform() consumes the response internally, so read() returns 0 after it.
-    client.open(@intCast(body.len)) catch |err| {
-        _ = sys.esp_rom_printf("[llm] open err: %s\r\n", @errorName(err).ptr);
+    client.perform() catch |err| {
+        _ = sys.esp_rom_printf("[llm] HTTP error: %s\r\n", @errorName(err).ptr);
         return error.HttpFailed;
     };
-    _ = client.write(body) catch |err| {
-        _ = sys.esp_rom_printf("[llm] write err: %s\r\n", @errorName(err).ptr);
-        client.close() catch {};
-        return error.HttpFailed;
-    };
-    _ = client.fetchHeaders();
+
     const status = client.getStatusCode();
     if (status != 200) {
         _ = sys.esp_rom_printf("[llm] HTTP status: %d\r\n", status);
-        client.close() catch {};
         return error.HttpBadStatus;
     }
-    const content_len = client.getContentLength();
-    _ = sys.esp_rom_printf("[llm] content-length: %d\r\n", @as(c_int, @intCast(content_len)));
 
-    var total: i64 = 0;
-    const want: i64 = if (content_len > 0) content_len else @as(i64, @intCast(g_resp_buf.len));
-    while (total < want) {
-        const remaining: c_int = @intCast(@min(want - total, 4096));
-        const n = sys.esp_http_client_read(client.handle, @ptrCast(g_resp_buf[@intCast(total)..].ptr), remaining);
-        if (n <= 0) break;
-        total += n;
-    }
-    client.close() catch {};
-    _ = sys.esp_rom_printf("[llm] Read %d bytes\r\n", @as(c_int, @intCast(total)));
-    if (total == 0) return error.HttpReadFailed;
+    const n = client.readResponse(&g_resp_buf) catch |err| {
+        _ = sys.esp_rom_printf("[llm] Read error: %s\r\n", @errorName(err).ptr);
+        return error.HttpReadFailed;
+    };
 
-    // Return a direct slice of the static buffer — no allocation needed.
-    // The caller must parse JSON before the next callLLM overwrites the buffer.
-    return g_resp_buf[0..@intCast(total)];
+    return allocator.dupe(u8, g_resp_buf[0..@intCast(n)]);
 }
 
 fn bufWrite(dst: []u8, src: []const u8) usize {
@@ -296,64 +242,14 @@ fn bufWriteJsonStr(dst: []u8, s: []const u8) usize {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Hex encode/decode helpers
-// ═══════════════════════════════════════════════════════════════════════════════
-
-fn hexDigit(c: u8) ?u8 {
-    if (c >= '0' and c <= '9') return c - '0';
-    if (c >= 'a' and c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' and c <= 'F') return c - 'A' + 10;
-    return null;
-}
-
-fn hexDecode(hex: []const u8, out: []u8) usize {
-    var i: usize = 0;
-    var o: usize = 0;
-    while (i + 1 < hex.len and o < out.len) : (i += 2) {
-        const hi = hexDigit(hex[i]) orelse break;
-        const lo = hexDigit(hex[i + 1]) orelse break;
-        out[o] = (hi << 4) | lo;
-        o += 1;
-    }
-    return o;
-}
-
-fn hexEncode(buf: []u8, data: []const u8) usize {
-    const hex_chars = "0123456789abcdef";
-    var pos: usize = 0;
-    for (data) |b| {
-        if (pos + 2 > buf.len) break;
-        buf[pos] = hex_chars[b >> 4];
-        buf[pos + 1] = hex_chars[b & 0x0F];
-        pos += 2;
-    }
-    return pos;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Tools (mirrors tools/gpio.zig, tools/file_write.zig)
 // ═══════════════════════════════════════════════════════════════════════════════
-
-// Static buffers for protocol operations (avoid stack overflow)
-var g_proto_tx_buf: [64]u8 = undefined;
-var g_proto_rx_buf: [64]u8 = undefined;
-var g_hex_buf: [128]u8 = undefined;
 
 fn executeTool(allocator: std.mem.Allocator, name: []const u8, args_str: []const u8) []const u8 {
     if (std.mem.eql(u8, name, "gpio_set")) {
         return execGpioSet(allocator, args_str);
     } else if (std.mem.eql(u8, name, "file_create")) {
         return execFileCreate(allocator, args_str);
-    } else if (std.mem.eql(u8, name, "uart_tx")) {
-        return execUartTx(allocator, args_str);
-    } else if (std.mem.eql(u8, name, "spi_transfer")) {
-        return execSpiTransfer(allocator, args_str);
-    } else if (std.mem.eql(u8, name, "i2c_scan")) {
-        return execI2cScan(allocator, args_str);
-    } else if (std.mem.eql(u8, name, "i2c_write")) {
-        return execI2cWrite(allocator, args_str);
-    } else if (std.mem.eql(u8, name, "i2c_read")) {
-        return execI2cRead(allocator, args_str);
     }
     return "Unknown tool";
 }
@@ -410,169 +306,30 @@ fn execFileCreate(allocator: std.mem.Allocator, args: []const u8) []const u8 {
     return std.fmt.allocPrint(allocator, "Stored {s} ({d} bytes)", .{ path, content.len }) catch "OK";
 }
 
-// ─── Protocol tools ─────────────────────────────────────────────────────
-
-fn validateGpio(pin: i64) ?c_int {
-    if (pin < 0 or pin > 48) return null;
-    // Pins 22-34 are input-only on ESP32-S3, can't use for output protocols
-    if (pin >= 22 and pin <= 34) return null;
-    // Pins 0,1,3,44,45 are strapping pins, avoid
-    if (pin == 0 or pin == 1 or pin == 3 or pin == 44 or pin == 45) return null;
-    return @intCast(pin);
-}
-
-fn execUartTx(allocator: std.mem.Allocator, args: []const u8) []const u8 {
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, args, .{}) catch return "JSON parse error";
-    defer parsed.deinit();
-
-    const pin_raw = (parsed.value.object.get("pin") orelse return "missing 'pin'").integer;
-    const pin = validateGpio(pin_raw) orelse return "invalid GPIO pin (use 0-21 or 35-48, avoid 0,1,3,44,45)";
-    const baud_val = (parsed.value.object.get("baud") orelse return "missing 'baud'").integer;
-    const data_hex = (parsed.value.object.get("data") orelse return "missing 'data'").string;
-
-    const data_len = hexDecode(data_hex, &g_proto_tx_buf);
-    if (data_len == 0) return "invalid hex data";
-
-    _ = sys.esp_rom_printf("[tool] UART TX pin=%d baud=%d len=%d\r\n", pin, @as(c_int, @intCast(baud_val)), @as(c_int, @intCast(data_len)));
-
-    const sent = proto_uart_tx_sync(pin, @intCast(baud_val), &g_proto_tx_buf, @intCast(data_len));
-    if (sent < 0) return "UART TX failed";
-    return std.fmt.allocPrint(allocator, "UART TX: {d} bytes sent at {d} baud", .{ sent, baud_val }) catch "OK";
-}
-
-fn execSpiTransfer(allocator: std.mem.Allocator, args: []const u8) []const u8 {
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, args, .{}) catch return "JSON parse error";
-    defer parsed.deinit();
-
-    const clk = validateGpio((parsed.value.object.get("clk") orelse return "missing 'clk'").integer) orelse return "invalid CLK GPIO";
-    const mosi = validateGpio((parsed.value.object.get("mosi") orelse return "missing 'mosi'").integer) orelse return "invalid MOSI GPIO";
-    const miso_raw = (parsed.value.object.get("miso") orelse return "missing 'miso'").integer;
-    const miso: c_int = if (miso_raw < 0) -1 else (validateGpio(miso_raw) orelse return "invalid MISO GPIO");
-    const cs_raw = (parsed.value.object.get("cs") orelse return "missing 'cs'").integer;
-    const cs: c_int = if (cs_raw < 0) -1 else (validateGpio(cs_raw) orelse return "invalid CS GPIO");
-    const data_hex = (parsed.value.object.get("data") orelse return "missing 'data'").string;
-    const hz_val = (parsed.value.object.get("clock_hz") orelse return "missing 'clock_hz'").integer;
-
-    const data_len = hexDecode(data_hex, &g_proto_tx_buf);
-    if (data_len == 0) return "invalid hex data";
-
-    @memset(&g_proto_rx_buf, 0);
-
-    _ = sys.esp_rom_printf("[tool] SPI clk=%d mosi=%d miso=%d cs=%d len=%d hz=%d\r\n", clk, mosi, miso, cs, @as(c_int, @intCast(data_len)), @as(c_int, @intCast(hz_val)));
-
-    const xfer = proto_spi_transfer_sync(clk, mosi, miso, cs, &g_proto_tx_buf, &g_proto_rx_buf, @intCast(data_len), @intCast(hz_val));
-    if (xfer < 0) return "SPI transfer failed";
-
-    const rx_hex_len = hexEncode(&g_hex_buf, g_proto_rx_buf[0..@intCast(xfer)]);
-    return std.fmt.allocPrint(allocator, "SPI RX: {s}", .{g_hex_buf[0..rx_hex_len]}) catch "OK";
-}
-
-fn execI2cWrite(allocator: std.mem.Allocator, args: []const u8) []const u8 {
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, args, .{}) catch return "JSON parse error";
-    defer parsed.deinit();
-
-    const sda = validateGpio((parsed.value.object.get("sda") orelse return "missing 'sda'").integer) orelse return "invalid SDA GPIO";
-    const scl = validateGpio((parsed.value.object.get("scl") orelse return "missing 'scl'").integer) orelse return "invalid SCL GPIO";
-    const addr_raw = (parsed.value.object.get("addr") orelse return "missing 'addr'").integer;
-    if (addr_raw < 0x03 or addr_raw > 0x77) return "I2C address must be 0x03-0x77";
-    const addr: u8 = @intCast(addr_raw);
-    const data_hex = (parsed.value.object.get("data") orelse return "missing 'data'").string;
-
-    const data_len = hexDecode(data_hex, &g_proto_tx_buf);
-    if (data_len == 0) return "invalid hex data";
-
-    _ = sys.esp_rom_printf("[tool] I2C write addr=0x%02x len=%d\r\n", @as(c_int, addr), @as(c_int, @intCast(data_len)));
-
-    const written = proto_i2c_write_sync(sda, scl, addr, &g_proto_tx_buf, @intCast(data_len));
-    if (written == -2) return "I2C NACK on address — device not found";
-    if (written < 0) return "I2C write failed";
-    return std.fmt.allocPrint(allocator, "I2C write: {d} bytes to addr 0x{x}", .{ written, @as(usize, addr) }) catch "OK";
-}
-
-fn execI2cRead(allocator: std.mem.Allocator, args: []const u8) []const u8 {
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, args, .{}) catch return "JSON parse error";
-    defer parsed.deinit();
-
-    const sda = validateGpio((parsed.value.object.get("sda") orelse return "missing 'sda'").integer) orelse return "invalid SDA GPIO";
-    const scl = validateGpio((parsed.value.object.get("scl") orelse return "missing 'scl'").integer) orelse return "invalid SCL GPIO";
-    const addr_raw = (parsed.value.object.get("addr") orelse return "missing 'addr'").integer;
-    if (addr_raw < 0x03 or addr_raw > 0x77) return "I2C address must be 0x03-0x77";
-    const addr: u8 = @intCast(addr_raw);
-    const len_val = (parsed.value.object.get("len") orelse return "missing 'len'").integer;
-
-    const read_len: usize = @intCast(@min(len_val, 64));
-
-    _ = sys.esp_rom_printf("[tool] I2C read addr=0x%02x len=%d\r\n", @as(c_int, addr), @as(c_int, @intCast(read_len)));
-
-    const n = proto_i2c_read_sync(sda, scl, addr, &g_proto_rx_buf, @intCast(read_len));
-    if (n == -2) return "I2C NACK on address — device not found";
-    if (n < 0) return "I2C read failed";
-
-    const rx_hex_len = hexEncode(&g_hex_buf, g_proto_rx_buf[0..@intCast(n)]);
-    return std.fmt.allocPrint(allocator, "I2C RX: {s}", .{g_hex_buf[0..rx_hex_len]}) catch "OK";
-}
-
-fn execI2cScan(allocator: std.mem.Allocator, args: []const u8) []const u8 {
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, args, .{}) catch return "JSON parse error";
-    defer parsed.deinit();
-
-    const sda = validateGpio((parsed.value.object.get("sda") orelse return "missing 'sda'").integer) orelse return "invalid SDA GPIO";
-    const scl = validateGpio((parsed.value.object.get("scl") orelse return "missing 'scl'").integer) orelse return "invalid SCL GPIO";
-
-    _ = sys.esp_rom_printf("[tool] I2C scan sda=%d scl=%d\r\n", sda, scl);
-
-    const found = proto_i2c_scan(sda, scl);
-
-    // Build result string listing found addresses
-    var buf: [256]u8 = undefined;
-    var pos: usize = 0;
-    pos += bufWrite(buf[pos..], "Found devices at:");
-    var count: usize = 0;
-    for (0x03..0x78) |addr| {
-        if ((found & (@as(u32, 1) << @intCast(addr))) != 0) {
-            const hex_chars = "0123456789abcdef";
-            if (pos + 5 < buf.len) {
-                buf[pos] = ' ';
-                buf[pos + 1] = '0';
-                buf[pos + 2] = 'x';
-                buf[pos + 3] = hex_chars[addr >> 4];
-                buf[pos + 4] = hex_chars[addr & 0x0F];
-                pos += 5;
-            }
-            count += 1;
-            _ = sys.esp_rom_printf("[scan] 0x%02x\r\n", @as(c_int, @intCast(addr)));
-        }
-    }
-    if (count == 0) {
-        return "No I2C devices found";
-    }
-    return allocator.dupe(u8, buf[0..pos]) catch "OK";
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // Agent: ReAct Tool-Calling Loop (mirrors agent.zig)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
+    var turn_arena = std.heap.ArenaAllocator.init(allocator);
+    defer turn_arena.deinit();
+    const ta = turn_arena.allocator();
+
     var input_buf: [1024]u8 = undefined;
     @memcpy(input_buf[0..user_input.len], user_input);
     var input_len = user_input.len;
 
     for (0..3) |_| {
-        const response = callLLM(input_buf[0..input_len]) catch |err| {
-            _ = sys.esp_rom_printf("[LLM err: %s]\r\n", @errorName(err).ptr);
+        const response = callLLM(ta, input_buf[0..input_len]) catch {
+            uartWriteLn("[LLM request failed]");
             return;
         };
 
-        // Per-iteration arena for JSON parsing + tool execution — freed at end
-        var iter_arena = std.heap.ArenaAllocator.init(allocator);
-        const ia = iter_arena.allocator();
-
-        const parsed = std.json.parseFromSlice(std.json.Value, ia, response, .{}) catch |err| {
-            _ = sys.esp_rom_printf("[JSON err: %s, len=%d]\r\n", @errorName(err).ptr, @as(c_int, @intCast(response.len)));
-            iter_arena.deinit();
+        const parsed = std.json.parseFromSlice(std.json.Value, ta, response, .{}) catch {
+            uartWriteLn("[JSON parse error]");
             return;
         };
+        defer parsed.deinit();
 
         const root = parsed.value;
 
@@ -603,25 +360,20 @@ fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
 
         if (message.object.get("tool_calls")) |tc| {
             if (tc == .array and tc.array.items.len > 0) {
-                // Execute ALL tool calls in the response, not just the first one
-                for (tc.array.items) |tc_item| {
-                    const func = tc_item.object.get("function") orelse continue;
-                    const name_val = func.object.get("name") orelse continue;
-                    const args_val = func.object.get("arguments") orelse continue;
-                    if (name_val != .string or args_val != .string) continue;
+                const tc_item = tc.array.items[0];
+                const func = tc_item.object.get("function") orelse continue;
+                const name_val = func.object.get("name") orelse continue;
+                const args_val = func.object.get("arguments") orelse continue;
+                if (name_val != .string or args_val != .string) continue;
 
-                    const name = name_val.string;
-                    const tool_args = args_val.string;
+                const name = name_val.string;
+                const tool_args = args_val.string;
 
-                    uartWrite("[agent] Tool: ");
-                    uartWriteLn(name);
-                    const result = executeTool(ia, name, tool_args);
+                _ = sys.esp_rom_printf("[agent] Tool: %s\r\n", name.ptr);
+                const result = executeTool(ta, name, tool_args);
 
-                    const suffix = std.fmt.bufPrint(input_buf[input_len..], "\n\n[Tool '{s}' result: {s}]", .{ name, result }) catch break;
-                    input_len += suffix.len;
-                }
-                parsed.deinit();
-                iter_arena.deinit();
+                const suffix = std.fmt.bufPrint(input_buf[input_len..], "\n\n[Tool '{s}' result: {s}]", .{ name, result }) catch break;
+                input_len += suffix.len;
                 continue;
             }
         }
@@ -633,8 +385,6 @@ fn agentTurn(allocator: std.mem.Allocator, user_input: []const u8) void {
                 uartWriteLn("[No content]");
             }
         }
-        parsed.deinit();
-        iter_arena.deinit();
         return;
     }
     uartWriteLn("[Max tool rounds reached]");
@@ -650,11 +400,6 @@ export fn app_main() callconv(.c) void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // Set up UART0 driver + VFS for stdin so console_getchar() works
-    init_console_uart();
-    // Init protocol engine (bit-bang UART/SPI/I2C + 3-task pool)
-    proto_init();
-
     idf.nvs.flashInitOrErase() catch |err| {
         _ = sys.esp_rom_printf("[nvs] Error: %s\r\n", @errorName(err).ptr);
         return;
@@ -664,11 +409,6 @@ export fn app_main() callconv(.c) void {
         _ = sys.esp_rom_printf("[wifi] Error: %s\r\n", @errorName(err).ptr);
         return;
     };
-
-    // Disable WiFi power-save to reduce peak current draw
-    _ = sys.esp_wifi_set_ps(sys.WIFI_PS_NONE);
-    // Sync system clock via NTP — required for TLS certificate validation
-    sync_time();
 
     uartWriteLn("");
     uartWriteLn("+------------------------------------------+");

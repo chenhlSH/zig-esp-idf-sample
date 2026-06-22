@@ -1,4 +1,4 @@
-set(DEPS nvs_flash esp_wifi esp_driver_uart esp_driver_gpio)
+set(DEPS nvs_flash esp_wifi)
 if(CONFIG_ESP_WIFI_ENABLED)
     list(APPEND DEPS esp_wifi esp_netif esp_event)
 endif()
@@ -6,7 +6,7 @@ if(CONFIG_BT_ENABLED)
     list(APPEND DEPS bt)
 endif()
 
-set(MAIN_SRCS "placeholder.c" "wifi_default_config.c" "proto_engine.c")
+set(MAIN_SRCS "placeholder.c" "wifi_default_config.c")
 
 # Add C++ Matter wrapper shim only when esp_matter is an active build component.
 # The component must be added via idf.py add-dependency espressif/esp_matter.
