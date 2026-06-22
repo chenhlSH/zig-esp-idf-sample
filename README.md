@@ -1,6 +1,8 @@
 # Zig + ESP-IDF Sample Project
 
-This repository is a fork of [kassane/zig-esp-idf-sample](https://github.com/kassane/zig-esp-idf-sample). It keeps the upstream Apache-2.0 / MIT-0 license model and updates the README to match what is actually in this tree.
+This repository is a fork of [kassane/zig-esp-idf-sample](https://github.com/kassane/zig-esp-idf-sample) by [kassane](https://github.com/kassane). It keeps the upstream Apache-2.0 / MIT-0 license model and adds new example firmware, including an embedded AI agent PoC inspired by [nullclaw/nullclaw](https://github.com/nullclaw/nullclaw).
+
+> **Credits:** The Zig/ESP-IDF integration layer, build system, and reusable Zig wrappers are the work of [kassane](https://github.com/kassane) and contributors. The NullClaw PoC example (`nullclaw-poc.zig`) applies the [NullClaw](https://github.com/nullclaw/nullclaw) agent architecture to ESP32-S3 hardware.
 
 ## Status
 
@@ -33,8 +35,9 @@ Current example files include:
 
 ### Example: nullclaw-poc.zig
 
-Detailed PoC demonstrating an embedded AI agent with a working protocol engine and tool-calling loop on ESP32-S3.
+Detailed PoC demonstrating an embedded AI agent with a working protocol engine and tool-calling loop on ESP32-S3. Inspired by [nullclaw/nullclaw](https://github.com/nullclaw/nullclaw) — the smallest fully autonomous AI assistant infrastructure.
 
+- **Full documentation:** [docs/nullclaw-poc.md](docs/nullclaw-poc.md)
 - Purpose: a small proof-of-concept that shows a REPL-driven agent running on the ESP32 which can:
 	- Send prompts to an LLM provider over HTTPS and parse responses.
 	- Execute declared "tool" functions returned by the LLM, including `gpio_set`, `file_create`, `uart_tx`, `spi_transfer`, `i2c_scan`, `i2c_write`, and `i2c_read`.
@@ -118,3 +121,9 @@ This fork keeps the upstream dual-license setup:
 - [MIT-0](LICENSE-MIT)
 
 Please preserve the original license notices when redistributing or reusing this code.
+
+## Acknowledgments
+
+- [kassane/zig-esp-idf-sample](https://github.com/kassane/zig-esp-idf-sample) — the original Zig/ESP-IDF integration project by [kassane](https://github.com/kassane)
+- [nullclaw/nullclaw](https://github.com/nullclaw/nullclaw) — the NullClaw agent architecture and design patterns
+- [Espressif ESP-IDF](https://github.com/espressif/esp-idf) — the official ESP32 development framework
